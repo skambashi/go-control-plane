@@ -23,7 +23,7 @@ import (
 	"strings"
 	"sync"
 
-	v2 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v2"
+	v2 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
 	"github.com/envoyproxy/go-control-plane/internal/example"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/server/v3"
