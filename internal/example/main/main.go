@@ -20,15 +20,14 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
-	"strings"
 	"sync"
 
-	v2 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
+	v3 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
 	"github.com/envoyproxy/go-control-plane/internal/example"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/server/v3"
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/ulikunitz/xz"
+	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -74,11 +73,10 @@ func parseYaml(yamlString string) ([]byte, error) {
 	return jsonString, nil
 }
 
-func convertJsonToPb(jsonString string) (*v2.Bootstrap, error) {
+func convertJsonToPb(jsonString string) (*v3.Bootstrap, error) {
 	l.Debugf("[databricks-envoy-cp] *** JSON ---> PB ***")
-	config := &v2.Bootstrap{}
-	r := strings.NewReader(string(jsonString))
-	err := jsonpb.Unmarshal(r, config)
+	config := &v3.Bootstrap{}
+	err := protojson.Unmarshal([]byte(jsonString), config)
 	// err := yaml.Unmarshal([]byte(envoyYaml), config)
 	l.Errorf("Error while converting JSON -> PB: %s ", err.Error())
 	if err != nil {
@@ -137,6 +135,7 @@ func updateCurrentConfigmap(eventChannel <-chan watch.Event, configmapKey *strin
 								return
 							}
 						*/
+						l.Debugf("[databricks-envoy-cp] *** JSON: %s", envoyConfigString)
 						pb, err := convertJsonToPb(envoyConfigString)
 						*configmapKey = key
 						*configmap = envoyConfigString
