@@ -19,9 +19,9 @@ import (
 	"encoding/base64"
 	"flag"
 	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
-	"os"
 
 	v2 "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v2"
 	"github.com/envoyproxy/go-control-plane/internal/example"
@@ -65,22 +65,26 @@ func init() {
 }
 
 // parseYaml takes in a yaml envoy config string and returns a typed version
-func parseYaml(yamlString string) (*v2.Bootstrap, error) {
-	l.Debugf("[databricks-envoy-cp] converting yaml to json")
+func parseYaml(yamlString string) ([]byte, error) {
+	l.Debugf("[databricks-envoy-cp] *** YAML ---> JSON ***")
 	jsonString, err := yaml.YAMLToJSON([]byte(yamlString))
 	if err != nil {
 		return nil, err
 	}
+	return jsonString, nil
+}
 
-	l.Debugf("[databricks-envoy-cp] converting json to pb")
+func convertJsonToPb(jsonString string) (*v2.Bootstrap, error) {
+	l.Debugf("[databricks-envoy-cp] *** JSON ---> PB ***")
 	config := &v2.Bootstrap{}
 	r := strings.NewReader(string(jsonString))
-	err = jsonpb.Unmarshal(r, config)
+	err := jsonpb.Unmarshal(r, config)
 	// err := yaml.Unmarshal([]byte(envoyYaml), config)
+	l.Errorf("Error while converting JSON -> PB: %s ", err.Error())
 	if err != nil {
 		return nil, err
 	}
-
+	l.Debugf("[databricks-envoy-cp] *** SUCCESS *** PB: %s", config)
 	return config, nil
 }
 
@@ -108,11 +112,11 @@ func updateCurrentConfigmap(eventChannel <-chan watch.Event, configmapKey *strin
 				fallthrough
 			case watch.Modified:
 				mutex.Lock()
-				l.Debugf("[databricks-envoy-cp] configmap modified")
+				l.Debugf("[databricks-envoy-cp] *** CONFIG MODIFIED ***")
 				// Update our configmap
 				if updatedMap, ok := event.Object.(*corev1.ConfigMap); ok {
 					for key, value := range updatedMap.Data {
-						l.Debugf("[databricks-envoy-cp] %s", key)
+						l.Debugf("[databricks-envoy-cp] ConfigMap Name: %s", key)
 						xzString, err := base64.StdEncoding.DecodeString(value)
 						if err != nil {
 							l.Errorf("Error decoding string: %s ", err.Error())
@@ -126,14 +130,17 @@ func updateCurrentConfigmap(eventChannel <-chan watch.Event, configmapKey *strin
 						}
 						result, _ := ioutil.ReadAll(r)
 						envoyConfigString := string(result)
-						config, err := parseYaml(envoyConfigString)
-						if err != nil {
-							l.Errorf("Error parsing yaml string: %s ", err.Error())
-							return
-						}
+						/*
+							config, err := parseYaml(envoyConfigString)
+							if err != nil {
+								l.Errorf("Error parsing yaml string: %s ", err.Error())
+								return
+							}
+						*/
+						pb, err := convertJsonToPb(envoyConfigString)
 						*configmapKey = key
 						*configmap = envoyConfigString
-						l.Debugf("[databricks-envoy-cp] pb: %s", config)
+						l.Debugf("[databricks-envoy-cp] *** PB: %s", pb)
 					}
 				}
 				mutex.Unlock()
