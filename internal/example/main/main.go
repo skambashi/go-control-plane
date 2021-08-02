@@ -21,6 +21,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 
 	_ "github.com/envoyproxy/go-control-plane/envoy/config/bootstrap/v3"
@@ -45,10 +46,10 @@ import (
 	"github.com/envoyproxy/go-control-plane/internal/example"
 	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/envoyproxy/go-control-plane/pkg/server/v3"
+	"github.com/gogo/protobuf/jsonpb"
 	_ "github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/itchyny/gojq"
 	"github.com/ulikunitz/xz"
-	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -97,8 +98,8 @@ func parseYaml(yamlString string) ([]byte, error) {
 func convertJsonToPb(jsonString string) (*v3.RouteConfiguration, error) {
 	l.Debugf("[databricks-envoy-cp] *** JSON ---> PB ***")
 	config := &v3.RouteConfiguration{}
-	// err := jsonpb.Unmarshal(strings.NewReader(jsonString), config)
-	err := protojson.Unmarshal([]byte(jsonString), config)
+	err := jsonpb.Unmarshal(strings.NewReader(jsonString), config)
+	// err := protojson.Unmarshal([]byte(jsonString), config)
 	// err := yaml.Unmarshal([]byte(envoyYaml), config)
 	l.Errorf("Error while converting JSON -> PB: %s ", err.Error())
 	if err != nil {
@@ -184,7 +185,7 @@ func updateCurrentConfigmap(eventChannel <-chan watch.Event, configmapKey *strin
 }
 
 func extractRoutes(jsonConfig string) string {
-	query, err := gojq.Parse(".static_resources.listeners[] | select(.address.socket_address.port_value == 443) | .filter_chains[0].filters[].typed_config.route_config")
+	query, err := gojq.Parse(".static_resources.listeners[] | select(.address.socket_address.port_value == 443) | .filter_chains[0].filters[0].typed_config.route_config")
 	if err != nil {
 		l.Debugf("[databricks-envoy-cp] Error occurred while extracting Routes: %s", err)
 	}
